@@ -1,0 +1,7 @@
+# Dependabot: weekly pull requests that update the pinned GitHub Actions.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

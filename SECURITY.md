@@ -6,9 +6,13 @@ Only the latest version on the `main` branch gets fixes.
 
 ## Report a problem
 
-Please do not open a public issue for a security problem. Report it privately through GitHub: the **Security** tab of this repository → **Report a vulnerability**.
+Please do not open a public issue for a security vulnerability. Report it privately through GitHub: the **Security** tab of this repository → **Report a vulnerability**, or directly at https://github.com/egrn/claude-code-mutedit/security/advisories/new.
 
 Write what you saw, how to repeat it, and which Claude Code version you use.
+
+## Disclosure
+
+A confirmed vulnerability is fixed on `main` first. Then a GitHub security advisory describes the problem, the fixed version and the reporter, if the reporter agrees.
 
 ## Scope
 
