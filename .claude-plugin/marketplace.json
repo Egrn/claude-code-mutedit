@@ -1,0 +1,13 @@
+{
+  "name": "mutedit",
+  "description": "mutedit: a Claude Code mod that shows one summary line instead of the edit diff",
+  "owner": {
+    "name": "egrn"
+  },
+  "plugins": [
+    {
+      "name": "mutedit",
+      "source": "./plugin"
+    }
+  ]
+}

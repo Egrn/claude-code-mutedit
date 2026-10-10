@@ -1,0 +1,11 @@
+{
+  "name": "mutedit",
+  "version": "0.1.0",
+  "description": "Hides diffs of Edit/Write/NotebookEdit results: one summary line instead",
+  "author": {
+    "name": "egrn"
+  },
+  "homepage": "https://github.com/egrn/claude-code-mutedit",
+  "repository": "https://github.com/egrn/claude-code-mutedit",
+  "license": "MIT"
+}

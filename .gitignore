@@ -1,0 +1,4 @@
+quar/
+tests/results/
+plugin/.claude-plugin/types/
+plugin/tsconfig.json
