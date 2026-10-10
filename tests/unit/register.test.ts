@@ -111,7 +111,7 @@ for (const surface of SURFACES) {
       ['lone high surrogate', 'a\ud800b', 'a\\ud800b'],
       ['lone low surrogate', 'a\udc00b', 'a\\udc00b'],
       ['emoji kept', 'ok\ud83d\ude00.ts', 'ok\ud83d\ude00.ts'],
-      ['non-Latin kept', 'папка/файл.ts', 'папка/файл.ts'],
+      ['non-ASCII letters kept', 'çanta/skedarët.ts', 'çanta/skedarët.ts'],
       ['OSC 8 link', '\x1b]8;;http://x\x07click\x1b]8;;\x07', '\\x1b]8;;http://x\\x07click\\x1b]8;;\\x07'],
     ]
     for (const [name, filePath, shown] of paths) {
@@ -168,6 +168,57 @@ for (const surface of SURFACES) {
     ]
     for (const [name, props] of pass) {
       test(`${surface}: ${name}`, async ($, on) => {
+        const seen = stand(on)
+        const { text, props: sent } = await draw($, surface, props)
+        expect(text).toBe(STOCK)
+        expect(seen).toHaveLength(1)
+        expect(seen[0]).toEqual(sent)
+      })
+    }
+  })
+
+  describe(`${surface}: Bash file changes`, () => {
+    // bashEditDiff as Claude Code 2.1.295 stores it under a Bash result
+    const hunk = (...lines: string[]) => ({ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines })
+    const bash = (diff: unknown) => ({ tool: 'Bash', output: { stdout: 'out', stderr: '', interrupted: false, isImage: false, noOutputExpected: false, bashEditDiff: diff } })
+    const cases: [string, unknown, string[]][] = [
+      ['updated file', { files: [{ filePath: '/w/a.txt', hunks: [hunk(' one', '-two', '+TWO', ' three')] }], moreFiles: 0, changedFiles: ['/w/a.txt'] }, ['updated · /w/a.txt · +1 −1']],
+      ['created file', { files: [{ filePath: '/w/n.txt', hunks: [hunk('+x', '+y')], created: true }], moreFiles: 0 }, ['created · /w/n.txt · 2 lines']],
+      ['deleted file', { files: [{ filePath: '/w/o.txt', hunks: [hunk('-p', '-q', '-r')], deleted: true }], moreFiles: 0 }, ['deleted · /w/o.txt · 3 lines']],
+      ['several files and more', { files: [{ filePath: 'a', hunks: [hunk('+1')] }, { filePath: 'b', hunks: [hunk('-1'), hunk('+2', '-3')] }], moreFiles: 7 }, ['updated · a · +1 −0', 'updated · b · +1 −2', '… 7 more files']],
+      ['path escaped', { files: [{ filePath: 'a\x1b[2J‮b', hunks: [] }], moreFiles: 0 }, ['updated · a\\x1b[2J\\u202eb · +0 −0']],
+      ['broken hunks and fields', { files: [null, 5, { filePath: 7, hunks: 'x' }, { filePath: 'c', hunks: [null, { lines: [null, '+a'] }], created: 'yes' }], moreFiles: '9' }, ['updated ·  · +0 −0', 'updated · c · +1 −0']],
+      ['moreFiles negative', { files: [{ filePath: 'a', hunks: [] }], moreFiles: -3 }, ['updated · a · +0 −0']],
+    ]
+    for (const [name, diff, want] of cases) {
+      test(`${surface}: ${name}`, async ($, on) => {
+        const seen = stand(on)
+        const { tree, props } = await draw($, surface, bash(diff))
+        expect(tree.type).toBe('Box')
+        const [stock, ...rows] = tree.children as any[]
+        expect(stock.children.join('')).toBe(STOCK)
+        expect(rows.map(r => r.children.join(''))).toEqual(want)
+        for (const r of rows) {
+          expect(r.props).toMatchObject({ dimColor: true, wrap: 'truncate-middle' })
+          expect(UNSAFE.test(r.children.join(''))).toBe(false)
+        }
+        // the stock drawing gets the command's own output, without the diff
+        expect(seen).toHaveLength(1)
+        const { bashEditDiff, ...rest } = (props as any).output
+        expect((seen[0] as any).output).toEqual(rest)
+        expect((seen[0] as any).tool).toBe('Bash')
+      })
+    }
+    const stockKept: [string, Props][] = [
+      ['no diff field', { tool: 'Bash', output: { stdout: 'out', stderr: '' } }],
+      ['empty files', bash({ files: [], moreFiles: 0 })],
+      ['diff unavailable', bash({ files: [], moreFiles: 0, unavailable: true })],
+      ['files not a list', bash({ files: 'a', moreFiles: 2 })],
+      ['diff null', bash(null)],
+      ['errored command with a diff', { ...bash({ files: [{ filePath: 'a', hunks: [] }], moreFiles: 0 }), isErrored: true }],
+    ]
+    for (const [name, props] of stockKept) {
+      test(`${surface}: ${name} keeps the stock drawing untouched`, async ($, on) => {
         const seen = stand(on)
         const { text, props: sent } = await draw($, surface, props)
         expect(text).toBe(STOCK)
@@ -333,8 +384,8 @@ describe('dialog', () => {
       const text = await run($, '')
       const lines = text.split('\n')
       expect(lines[0]).toBe(first)
-      expect(lines[1]).toBe(after ? 'New Edit, Write and NotebookEdit results show one line.' : 'New edit results show the full diff.')
-      expect(text).toContain('Shows one summary line instead of the diff of Edit, Write and NotebookEdit results.')
+      expect(lines[1]).toBe(after ? 'New edit results show one line.' : 'New edit results show the full diff.')
+      expect(text).toContain('Shows one summary line instead of the diff of Edit, Write and NotebookEdit results and of files a Bash command changed.')
       expect(text).toContain('/mutedit on|off')
       expect(s.asked).toHaveLength(1)
       expect(s.asked[0]).toMatchObject([{ question: `mutedit is ${before ? 'on' : 'off'}. Turn it on or off?`, header: 'mutedit', options: [{ label: 'On' }, { label: 'Off' }] }])

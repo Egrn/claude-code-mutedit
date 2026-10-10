@@ -1,4 +1,4 @@
-// Draws one summary line in place of the diff for file-editing tool results
+// Draws one summary line in place of the diff for file-editing tool results and Bash file changes
 const TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 
 // Count added and removed lines in structuredPatch hunks; broken parts are skipped
@@ -59,6 +59,23 @@ function summary(tool, out) {
   return `updated · ${path} · +${add} −${del}`
 }
 
+// One line per file a Bash command changed, from the bashEditDiff the engine keeps
+// for drawing (an internal field: when it is missing or empty, Bash keeps the stock drawing)
+function bashSummaries(diff) {
+  const files = Array.isArray(diff?.files) ? diff.files.filter(f => f && typeof f === 'object') : []
+  if (files.length === 0) return []
+  const rows = files.map(f => {
+    const path = safe(f.filePath)
+    const { add, del } = countLines(f.hunks)
+    if (f.created === true) return `created · ${path} · ${add} lines`
+    if (f.deleted === true) return `deleted · ${path} · ${del} lines`
+    return `updated · ${path} · +${add} −${del}`
+  })
+  const more = Number.isInteger(diff.moreFiles) && diff.moreFiles > 0 ? diff.moreFiles : 0
+  if (more) rows.push(`… ${more} more files`)
+  return rows
+}
+
 // On or off for new rows; read from the store once per session, saved across sessions
 const KEY = 'enabled'
 let enabled = true
@@ -76,7 +93,7 @@ function load($, again) {
 // What each row showed when first drawn, so a switch changes only rows drawn after it
 const shown = new Map()
 
-const HELP = 'Shows one summary line instead of the diff of Edit, Write and NotebookEdit results.'
+const HELP = 'Shows one summary line instead of the diff of Edit, Write and NotebookEdit results and of files a Bash command changed.'
 const USAGE = '/mutedit on|off switches without the dialog.'
 const state = () => (enabled ? 'on' : 'off')
 
@@ -104,7 +121,7 @@ async function menu($) {
   if (answer === 'On' || answer === 'Off') line = await turn($, answer === 'On')
   else if (answer === undefined) line = `${state()} (unchanged)`
   else line = `${state()} (unchanged: '${safe(answer)}' is not On or Off)`
-  const what = enabled ? 'New Edit, Write and NotebookEdit results show one line.' : 'New edit results show the full diff.'
+  const what = enabled ? 'New edit results show one line.' : 'New edit results show the full diff.'
   return [line, what, HELP, USAGE].join('\n')
 }
 
@@ -126,7 +143,9 @@ export function register(on) {
   on('ui.render', { component: 'ToolResult' }, async ($, e, next) => {
     const { tool_use_id: id, tool, output, isErrored } = e.props ?? {}
     // Errors and other tools keep the stock drawing
-    if (!TOOLS.has(tool) || isErrored || !output || typeof output !== 'object') return next(e)
+    if (isErrored || !output || typeof output !== 'object') return next(e)
+    const bash = tool === 'Bash' ? bashSummaries(output.bashEditDiff) : null
+    if (!TOOLS.has(tool) && !bash?.length) return next(e)
     let muted = shown.get(id)
     if (muted === undefined) {
       await load($)
@@ -134,7 +153,12 @@ export function register(on) {
       shown.set(id, muted)
     }
     if (!muted) return next(e)
-    const { Text } = $.ui.resolve(e)
-    return Text({ dimColor: true, wrap: 'truncate-middle', children: [summary(tool, output)] })
+    const { Box, Text } = $.ui.resolve(e)
+    const line = text => Text({ dimColor: true, wrap: 'truncate-middle', children: [text] })
+    if (!bash) return line(summary(tool, output))
+    // Bash: the stock drawing of the command's output without the diff, then one line per file
+    const { bashEditDiff, ...rest } = output
+    const stock = await next({ ...e, props: { ...e.props, output: rest } })
+    return Box({ flexDirection: 'column', children: [stock, ...bash.map(line)] })
   })
 }

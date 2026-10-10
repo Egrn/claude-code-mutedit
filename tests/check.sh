@@ -120,9 +120,16 @@ expected() {
   printf '%s\n' 'created · '"$WORK"'/zw\u200bsp\u2028x.txt · 1 lines'
   printf '%s\n' "updated · $WORK/broken.txt · +1 −1"
   printf '%s\n' 'replace cell c\x1b[2Jx · '"$WORK"'/n.ipynb'
+  printf '%s\n' "updated · $WORK/bash-a.txt · +1 −1"
+  printf '%s\n' "created · $WORK/bash-new.txt · 2 lines"
+  printf '%s\n' "deleted · $WORK/bash-old.txt · 3 lines"
+  printf '%s\n' "… 3 more files"
+  printf '%s\n' 'updated · '"$WORK"'/bash\x1b[2Jesc.txt · +1 −1'
+  printf '%s\n' "updated · $WORK/bash-g1.txt · +1 −1"
+  printf '%s\n' "updated · $WORK/bash-g2.txt · +1 −1"
 }
-MOD_LINE='^(updated|created) · |^[a-z]+ cell .* · '
-STOCK_DIFF='Added [0-9]+ lines?, removed|Wrote [0-9]+ lines? to|Updated cell '
+MOD_LINE='^(updated|created|deleted) · |^[a-z]+ cell .* · '
+STOCK_DIFF='Added [0-9]+ lines?, removed|Wrote [0-9]+ lines? to|Updated cell |⎿  (Updated|Created|Deleted) .* \(\+[0-9]+ -[0-9]+\)$'
 
 check_mod_view() { # check_mod_view <capture file> <label>
   local f=$1 l=$2 n
@@ -130,7 +137,10 @@ check_mod_view() { # check_mod_view <capture file> <label>
     grep -qxF -- "$line" "$f"; check "$l: missing line: $line" $?
   done < <(expected)
   grep -qE "^created · .*….*/end\.txt · 1 lines$" "$f"; check "$l: long path not cut to one line" $?
-  n=$(grep -cE "$MOD_LINE" "$f"); [ "$n" = 39 ]; check "$l: mod lines $n, expected 39" $?
+  n=$(grep -cE "$MOD_LINE" "$f"); [ "$n" = 45 ]; check "$l: mod lines $n, expected 45" $?
+  for o in out-a out-b out-d out-e1 out-e2; do
+    grep -qP "⎿[\s\x{a0}]+\Q$o\E\s*$" "$f"; check "$l: Bash output '$o' not drawn (stock part of the row)" $?
+  done
   n=$(grep -cE "$STOCK_DIFF" "$f"); [ "$n" = 0 ]; check "$l: stock diff lines $n, expected 0" $?
   n=$(grep -cE "File must be read first|File has not been read yet" "$f"); [ "$n" = 5 ]; check "$l: errors drawn $n, expected 5 (stock)" $?
   n=$(grep -cE "User rejected write to (.*/)?default-rejected.txt" "$f"); [ "$n" = 1 ]; check "$l: user rejection drawn $n, expected 1 (stock)" $?
@@ -181,6 +191,18 @@ make_session() {
   }
   read_() { # read_ <path>
     printf 'Read\t{"file_path":"%s"}\t{"type":"text","file":{"filePath":"%s","content":"x\\n","numLines":2,"startLine":1,"totalLines":2}}\t"1\\tx\\n2\\t"\t' "$1" "$1"
+  }
+  bash_() { # bash_ <stdout> [<bashEditDiff>] — a Bash call as 2.1.295 stores it
+    local diff=""; [ -n "${2-}" ] && diff=",\"bashEditDiff\":$2"
+    printf 'Bash\t{"command":"./change.sh","description":"Change files"}\t{"stdout":"%s","stderr":"","interrupted":false,"isImage":false,"noOutputExpected":false%s}\t"%s"\t' \
+      "$1" "$diff" "$1"
+  }
+  hunk() { # hunk <line>... → one bashEditDiff hunk at 1,1
+    local o=0 w=0 l ls=""
+    for l in "$@"; do
+      [ "${l:0:1}" = + ] || o=$((o + 1)); [ "${l:0:1}" = - ] || w=$((w + 1)); ls+=",\"$l\""
+    done
+    printf '{"oldStart":1,"oldLines":%d,"newStart":1,"newLines":%d,"lines":[%s]}' $o $w "${ls:1}"
   }
   failed() { # failed <call> <toolUseResult> <text> <flags>
     local f; IFS=$TAB read -r -a f <<<"$1"
@@ -239,9 +261,17 @@ make_session() {
     "$(create "$D/evil\u202ecod.sh" 'x\n')" "$(create "$D/zw\u200bsp\u2028x.txt" 'x\n')" "$(create "$long" 'x\n')" \
     "Edit${TAB}{\"file_path\":\"$D/broken.txt\",\"old_string\":\"a\",\"new_string\":\"b\"}${TAB}{\"filePath\":\"$D/broken.txt\",\"oldString\":\"a\",\"newString\":\"b\",\"originalFile\":\"a\\n\",\"structuredPatch\":[null,{\"lines\":null},{\"lines\":[null,5,\"+b\",\"-a\"]}],\"userModified\":false,\"replaceAll\":false}${TAB}$OK_EDIT${TAB}" \
     "$(cell replace 'c\u001b[2Jx' 'print(4)' "$D/n.ipynb")"
+  # Bash commands that change files: the stock output stays, the diff becomes one line per file
+  local h1 h2 h3; h1=$(hunk ' one' -two +TWO ' three'); h2=$(hunk +x +y); h3=$(hunk -p -q -r)
+  section 8 auto \
+    "$(bash_ 'out-a' "{\"files\":[{\"filePath\":\"$D/bash-a.txt\",\"hunks\":[$h1]}],\"moreFiles\":0,\"changedFiles\":[\"$D/bash-a.txt\"]}")" \
+    "$(bash_ 'out-b' "{\"files\":[{\"filePath\":\"$D/bash-new.txt\",\"hunks\":[$h2],\"created\":true},{\"filePath\":\"$D/bash-old.txt\",\"hunks\":[$h3],\"deleted\":true}],\"moreFiles\":3,\"changedFiles\":[\"$D/bash-new.txt\",\"$D/bash-old.txt\"]}")" \
+    "$(bash_ 'out-c')" \
+    "$(bash_ 'out-d' "{\"files\":[{\"filePath\":\"$D/bash\u001b[2Jesc.txt\",\"hunks\":[$h1]}],\"moreFiles\":0}")" \
+    "$(bash_ 'out-e1' "{\"files\":[{\"filePath\":\"$D/bash-g1.txt\",\"hunks\":[$h1]}],\"moreFiles\":0}")$NL$(bash_ 'out-e2' "{\"files\":[{\"filePath\":\"$D/bash-g2.txt\",\"hunks\":[$h1]}],\"moreFiles\":0}")"
   add "$(base assistant),\"message\":{\"id\":\"msg_end\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-sonnet-5-5\",\"content\":[{\"type\":\"text\",\"text\":\"end of synthetic session\"}],\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"usage\":{\"input_tokens\":0,\"output_tokens\":0}}}"
   printf '%s\n' "${rows[@]}" > "$out"
-  echo "8 sections, $n tool calls, ${#rows[@]} records -> $out"
+  echo "9 sections, $n tool calls, ${#rows[@]} records -> $out"
 }
 
 # Unit tests on a temp copy of plugin/ + tests/unit
@@ -314,7 +344,7 @@ if [ $LIVE = 1 ]; then
   tmux send-keys -t $TMUX_NAME C-o
   wait_for "Showing detailed transcript"; sleep 2
   capture "$OUT/live-off-redraw.txt"
-  n=$(grep -cE "$MOD_LINE" "$OUT/live-off-redraw.txt"); [ "$n" = 39 ]; check "off, redraw: old rows one line $n, expected 39" $?
+  n=$(grep -cE "$MOD_LINE" "$OUT/live-off-redraw.txt"); [ "$n" = 45 ]; check "off, redraw: old rows one line $n, expected 45" $?
   n=$(grep -cE "$STOCK_DIFF" "$OUT/live-off-redraw.txt"); [ "$n" = 0 ]; check "off, redraw: stock diff lines $n, expected 0" $?
 
   # 4. Off is kept: a new session draws every edit as the full diff
@@ -327,10 +357,10 @@ if [ $LIVE = 1 ]; then
   slash "/mutedit"
   wait_for "mutedit is off. Turn it on or off?"; check "dialog: no question 'mutedit is off. Turn it on or off?'" $?
   tmux send-keys -t $TMUX_NAME 1
-  wait_for "New Edit, Write and NotebookEdit results show one line."; check "dialog: picking On gave no answer" $?
+  wait_for "New edit results show one line."; check "dialog: picking On gave no answer" $?
   open_session "--plugin-dir $MOD"
   capture "$OUT/live-on-again.txt"
-  n=$(grep -cE "$MOD_LINE" "$OUT/live-on-again.txt"); [ "$n" = 39 ]; check "on again, new session: mod lines $n, expected 39" $?
+  n=$(grep -cE "$MOD_LINE" "$OUT/live-on-again.txt"); [ "$n" = 45 ]; check "on again, new session: mod lines $n, expected 45" $?
 
   # 6. Without the mod: the session must really draw diffs there
   if [ $BASELINE = 1 ]; then

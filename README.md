@@ -49,8 +49,9 @@ The mod uses only the public Claude Code mod API, and no Anthropic rule forbids 
 | Write, new file | `created · <path> · <lines> lines` |
 | Write, existing file | `updated · <path> · +<added> −<removed>` |
 | NotebookEdit | `<mode> cell <id> · <path>` |
+| Bash that changed files | the command's output, then one line per file: `updated · <path> · +<added> −<removed>`, `created · <path> · <lines> lines`, `deleted · <path> · <lines> lines`, and `… <n> more files` when Claude Code lists more |
 
-A failed edit shows the normal error. Other tools look normal.
+A failed edit or command shows the normal error. Other tools and Bash commands that changed no files look normal.
 
 The path is shown as it really is. Characters that can move the cursor, break the line, hide text or turn it right-to-left are shown as escapes, for example `\x1b`, `\n`, `\u202e`. A path longer than 1000 characters is cut in the middle with `…`.
 
@@ -122,7 +123,7 @@ Flags combine. Exit code is 0 only when every check passes. Output goes to `test
 
 **Static check** `claude plugin validate` must report exactly these hooks: `session.start`, `command.run{command=mutedit}`, `ui.render{component=ToolResult}`, and these calls: `$.command.register`, `$.store.get`, `$.store.set`, `$.ui.ask`, `$.ui.resolve`. No files, no network, no processes. A mod runs with your permissions, so this list must stay this short.
 
-**Unit tests** (139, `claude plugin test`, each one on the terminal and the desktop surface where it draws):
+**Unit tests** (165, `claude plugin test`, each one on the terminal and the desktop surface where it draws):
 
 | Class | Tests | What it checks |
 | --- | --- | --- |
@@ -130,6 +131,7 @@ Flags combine. Exit code is 0 only when every check passes. Output goes to `test
 | broken input | 20 | broken patch, wrong field types: no crash |
 | control characters | 46 | escapes, bidi and zero-width chars, broken UTF-16, cut of long paths |
 | stock drawing kept | 18 | errors, other tools, empty output go to the normal drawing |
+| Bash file changes | 26 | one line per changed, created, deleted file, `… more files`, escaped paths, broken diff data; the command's output still drawn; no diff, errors: normal drawing |
 | command | 11 | `/mutedit on/off`, unknown and hostile arguments |
 | dialog | 5 | On, Off, Esc, free text |
 | switch keeps rows | 4 | rows drawn before a switch keep their look |
@@ -138,7 +140,7 @@ Flags combine. Exit code is 0 only when every check passes. Output goes to `test
 
 `claude plugin test` finds tests only inside the plugin folder, so the script copies `plugin/` and `tests/unit/` to a temp folder and runs them there.
 
-**Live check** The script builds a made-up saved session: every permission mode, every file tool, errors, a user rejection, a plan file, a parallel group, bad paths. Then it opens the session with `claude --resume` in a hidden tmux window. Claude Code draws the saved results again through the mod, and the script reads the screen. It also drives `/mutedit` and its dialog and checks that the choice is kept in a new session. Nothing is sent to the model. Your own on/off state is read first and put back at the end.
+**Live check** The script builds a made-up saved session: every permission mode, every file tool, Bash commands that change files, errors, a user rejection, a plan file, a parallel group, bad paths. Then it opens the session with `claude --resume` in a hidden tmux window. Claude Code draws the saved results again through the mod, and the script reads the screen. It also drives `/mutedit` and its dialog and checks that the choice is kept in a new session. Nothing is sent to the model. Your own on/off state is read first and put back at the end.
 
 **The gate** After every code change run:
 
