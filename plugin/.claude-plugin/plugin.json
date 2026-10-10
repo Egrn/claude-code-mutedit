@@ -1,6 +1,6 @@
 {
   "name": "mutedit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Hides diffs of Edit/Write/NotebookEdit results: one summary line instead",
   "author": {
     "name": "egrn"
