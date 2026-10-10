@@ -1,6 +1,6 @@
 {
   "name": "mutedit",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Hides diffs of Edit/Write/NotebookEdit results and of files Bash commands change: one summary line instead",
   "author": {
     "name": "egrn"

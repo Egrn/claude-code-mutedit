@@ -32,8 +32,13 @@ async function draw($: any, surface: (typeof SURFACES)[number], p: Props, id = `
   const ui = await $.ui.mount({ plugin: 'mutedit', surface, component: 'ToolResult', requestId: id, props })
   const tree = await ui.drawn()
   await ui.unmount()
-  return { tree, text: (tree.children ?? []).join(''), props }
+  const raw = (tree.children ?? []).join('')
+  return { tree, raw, text: unlead(surface, raw), props }
 }
+
+// What opens every mod line: the stock gutter in the terminal, then the mod's own name
+const lead = (surface: string) => (surface === 'terminal' ? '  ⎿  ' : '') + 'Muted it: '
+const unlead = (surface: string, text: string) => (text.startsWith(lead(surface)) ? text.slice(lead(surface).length) : text)
 
 // Unsafe characters as the mod must never pass them to the screen
 const UNSAFE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]|[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/
@@ -55,6 +60,12 @@ for (const surface of SURFACES) {
       ['notebook', { tool: 'NotebookEdit', output: { edit_mode: 'replace', cell_id: 'c1', notebook_path: 'nb.ipynb' } }, 'replace cell c1 · nb.ipynb'],
       ['notebook, no mode', { tool: 'NotebookEdit', output: { cell_id: 'c2', notebook_path: 'nb.ipynb' } }, 'edit cell c2 · nb.ipynb'],
     ]
+    test(`${surface}: line opens with ${surface === 'terminal' ? 'the stock gutter and ' : ''}"Muted it: "`, async ($, on) => {
+      stand(on)
+      const { raw } = await draw($, surface, cases[0][1])
+      expect(raw).toBe(lead(surface) + cases[0][2])
+      expect(raw.startsWith('  ⎿  ')).toBe(surface === 'terminal')
+    })
     for (const [name, props, want] of cases) {
       test(`${surface}: ${name}`, async ($, on) => {
         const seen = stand(on)
@@ -189,6 +200,14 @@ for (const surface of SURFACES) {
       ['path escaped', { files: [{ filePath: 'a\x1b[2J‮b', hunks: [] }], moreFiles: 0 }, ['updated · a\\x1b[2J\\u202eb · +0 −0']],
       ['broken hunks and fields', { files: [null, 5, { filePath: 7, hunks: 'x' }, { filePath: 'c', hunks: [null, { lines: [null, '+a'] }], created: 'yes' }], moreFiles: '9' }, ['updated ·  · +0 −0', 'updated · c · +1 −0']],
       ['moreFiles negative', { files: [{ filePath: 'a', hunks: [] }], moreFiles: -3 }, ['updated · a · +0 −0']],
+      // as 2.1.295 stores a file too large to diff: no files, the path only in changedFiles
+      ['file with no diff', { files: [], moreFiles: 1, changedFiles: ['/w/py_graph.mmd'] }, ['changed · /w/py_graph.mmd']],
+      ['no diff, more files than named', { files: [], moreFiles: 3, changedFiles: ['/w/a.json'] }, ['changed · /w/a.json', '… 2 more files']],
+      ['diffed and undiffed files', { files: [{ filePath: '/w/a', hunks: [hunk('+1')] }], moreFiles: 2, changedFiles: ['/w/a', '/w/b', '/w/c'] }, ['updated · /w/a · +1 −0', 'changed · /w/b', 'changed · /w/c']],
+      ['no diff, names cut to moreFiles', { files: [], moreFiles: 1, changedFiles: ['/w/a', '/w/b'] }, ['changed · /w/a']],
+      ['no diff, path escaped', { files: [], moreFiles: 1, changedFiles: ['x\x1b[2J‮y'] }, ['changed · x\\x1b[2J\\u202ey']],
+      ['no diff, broken names', { files: [], moreFiles: 2, changedFiles: [null, 5, '/w/a', '/w/a'] }, ['changed · /w/a', '… 1 more files']],
+      ['no diff, no names', { files: [], moreFiles: 2 }, ['… 2 more files']],
     ]
     for (const [name, diff, want] of cases) {
       test(`${surface}: ${name}`, async ($, on) => {
@@ -197,7 +216,7 @@ for (const surface of SURFACES) {
         expect(tree.type).toBe('Box')
         const [stock, ...rows] = tree.children as any[]
         expect(stock.children.join('')).toBe(STOCK)
-        expect(rows.map(r => r.children.join(''))).toEqual(want)
+        expect(rows.map(r => r.children.join(''))).toEqual(want.map(w => lead(surface) + w))
         for (const r of rows) {
           expect(r.props).toMatchObject({ dimColor: true, wrap: 'truncate-middle' })
           expect(UNSAFE.test(r.children.join(''))).toBe(false)
@@ -213,7 +232,9 @@ for (const surface of SURFACES) {
       ['no diff field', { tool: 'Bash', output: { stdout: 'out', stderr: '' } }],
       ['empty files', bash({ files: [], moreFiles: 0 })],
       ['diff unavailable', bash({ files: [], moreFiles: 0, unavailable: true })],
-      ['files not a list', bash({ files: 'a', moreFiles: 2 })],
+      ['files not a list', bash({ files: 'a', moreFiles: 0 })],
+      ['shared, no files', bash({ files: [], moreFiles: 0, shared: true })],
+      ['changedFiles but nothing more', bash({ files: [], moreFiles: 0, changedFiles: ['/w/a'] })],
       ['diff null', bash(null)],
       ['errored command with a diff', { ...bash({ files: [{ filePath: 'a', hunks: [] }], moreFiles: 0 }), isErrored: true }],
     ]
@@ -268,7 +289,7 @@ describe('speed', () => {
     const r = (n: number) => n.toFixed(3)
     console.log(`speed ms: normal ${r(normal)} | 10k ${r(k10)} | 100k ${r(k100)} | growth x${(k100 / k10).toFixed(1)} | create 1M ${r(created)} | 1000 others ${r(other)}`)
 
-    expect((await call({ tool: 'Write', output: { type: 'create', filePath: 'a', content: big } }) as any).children[0]).toBe('created · a · 1000000 lines')
+    expect((await call({ tool: 'Write', output: { type: 'create', filePath: 'a', content: big } }) as any).children[0]).toBe('Muted it: created · a · 1000000 lines')
     expect(normal).toBeLessThan(1)
     expect(k100).toBeLessThan(5)
     expect(k100 / k10).toBeLessThanOrEqual(12)

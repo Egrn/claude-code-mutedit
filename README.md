@@ -8,11 +8,15 @@
 A Claude Code mod that mutes edit diffs. When Claude edits or creates a file, the terminal shows one grey summary line instead of the full diff:
 
 ```
-updated · src/app.js · +2 −1
-created · notes.txt · 4 lines
+● Update(src/app.js)
+  ⎿  Muted it: updated · src/app.js · +2 −1
+● Write(notes.txt)
+  ⎿  Muted it: created · notes.txt · 4 lines
 ```
 
 Only the screen changes. The saved tool result and what the model sees stay the same.
+
+![Edit and Bash results without and with mutedit](docs/mutedit.gif)
 
 ## Install
 
@@ -49,9 +53,9 @@ The mod uses only the public Claude Code mod API, and no Anthropic rule forbids 
 | Write, new file | `created · <path> · <lines> lines` |
 | Write, existing file | `updated · <path> · +<added> −<removed>` |
 | NotebookEdit | `<mode> cell <id> · <path>` |
-| Bash that changed files | the command's output, then one line per file: `updated · <path> · +<added> −<removed>`, `created · <path> · <lines> lines`, `deleted · <path> · <lines> lines`, and `… <n> more files` when Claude Code lists more |
+| Bash that changed files | the command's output, then one line per file: `updated · <path> · +<added> −<removed>`, `created · <path> · <lines> lines`, `deleted · <path> · <lines> lines`, `changed · <path>` for a file Claude Code shows no diff for (too large or binary), and `… <n> more files` when it does not name them all |
 
-A failed edit or command shows the normal error. Other tools and Bash commands that changed no files look normal.
+Each line starts with `Muted it: `, under the tool row with the same `⎿` indent as Claude Code's own result. A failed edit or command shows the normal error. Other tools and Bash commands that changed no files look normal.
 
 The path is shown as it really is. Characters that can move the cursor, break the line, hide text or turn it right-to-left are shown as escapes, for example `\x1b`, `\n`, `\u202e`. A path longer than 1000 characters is cut in the middle with `…`.
 
@@ -123,7 +127,7 @@ Flags combine. Exit code is 0 only when every check passes. Output goes to `test
 
 **Static check** `claude plugin validate` must report exactly these hooks: `session.start`, `command.run{command=mutedit}`, `ui.render{component=ToolResult}`, and these calls: `$.command.register`, `$.store.get`, `$.store.set`, `$.ui.ask`, `$.ui.resolve`. No files, no network, no processes. A mod runs with your permissions, so this list must stay this short.
 
-**Unit tests** (165, `claude plugin test`, each one on the terminal and the desktop surface where it draws):
+**Unit tests** (183, `claude plugin test`, each one on the terminal and the desktop surface where it draws):
 
 | Class | Tests | What it checks |
 | --- | --- | --- |
@@ -131,7 +135,7 @@ Flags combine. Exit code is 0 only when every check passes. Output goes to `test
 | broken input | 20 | broken patch, wrong field types: no crash |
 | control characters | 46 | escapes, bidi and zero-width chars, broken UTF-16, cut of long paths |
 | stock drawing kept | 18 | errors, other tools, empty output go to the normal drawing |
-| Bash file changes | 26 | one line per changed, created, deleted file, `… more files`, escaped paths, broken diff data; the command's output still drawn; no diff, errors: normal drawing |
+| Bash file changes | 44 | one line per changed, created, deleted file, files with no diff, `… more files`, escaped paths, broken diff data; the command's output still drawn; no diff, errors: normal drawing |
 | command | 11 | `/mutedit on/off`, unknown and hostile arguments |
 | dialog | 5 | On, Off, Esc, free text |
 | switch keeps rows | 4 | rows drawn before a switch keep their look |
