@@ -1,6 +1,6 @@
 # mutedit
 
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/egrn/claude-code-mutedit/badge)](https://scorecard.dev/viewer/?uri=github.com/egrn/claude-code-mutedit)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Egrn/claude-code-mutedit/badge)](https://scorecard.dev/viewer/?uri=github.com/Egrn/claude-code-mutedit)
 [![CodeQL](https://github.com/egrn/claude-code-mutedit/actions/workflows/codeql.yml/badge.svg)](https://github.com/egrn/claude-code-mutedit/actions/workflows/codeql.yml)
 
 **Hey, Muted it! Ditch the diff cut the riff, no more edits less of credits**
