@@ -3,12 +3,13 @@
 A Claude Code mod that mutes edit diffs. When Claude edits or creates a file, the terminal shows one grey summary line instead of the full diff:
 
 ```
-updated · src/app.js · +2 −1
-created · notes.txt · 4 lines
-replace cell c1 · analysis.ipynb
+● Update(src/app.js)
+  ⎿  Muted it: updated · src/app.js · +2 −1
+● Write(notes.txt)
+  ⎿  Muted it: created · notes.txt · 4 lines
 ```
 
-When a Bash command changes files, its output stays and the diff becomes one line per file, such as `deleted · old.txt · 3 lines`.
+When a Bash command changes files, its output stays and the diff becomes one line per file, such as `deleted · old.txt · 3 lines`, or `changed · graph.mmd` for a file too large to diff.
 
 Only the screen changes. The saved tool result and what the model sees stay the same. A failed edit or command shows the normal error, and other tools look normal.
 

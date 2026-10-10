@@ -63,7 +63,6 @@ function summary(tool, out) {
 // for drawing (an internal field: when it is missing or empty, Bash keeps the stock drawing)
 function bashSummaries(diff) {
   const files = Array.isArray(diff?.files) ? diff.files.filter(f => f && typeof f === 'object') : []
-  if (files.length === 0) return []
   const rows = files.map(f => {
     const path = safe(f.filePath)
     const { add, del } = countLines(f.hunks)
@@ -71,10 +70,22 @@ function bashSummaries(diff) {
     if (f.deleted === true) return `deleted · ${path} · ${del} lines`
     return `updated · ${path} · +${add} −${del}`
   })
-  const more = Number.isInteger(diff.moreFiles) && diff.moreFiles > 0 ? diff.moreFiles : 0
+  // Files changed with no diff to show (too large, binary, mode only): named from changedFiles
+  let more = Number.isInteger(diff?.moreFiles) && diff.moreFiles > 0 ? diff.moreFiles : 0
+  const shown = new Set(files.map(f => f.filePath))
+  const named = Array.isArray(diff?.changedFiles) ? diff.changedFiles : []
+  for (const path of new Set(named)) {
+    if (more === 0) break
+    if (typeof path !== 'string' || shown.has(path)) continue
+    rows.push(`changed · ${safe(path)}`)
+    more--
+  }
   if (more) rows.push(`… ${more} more files`)
   return rows
 }
+
+const GUTTER = '  ⎿  '
+const PREFIX = 'Muted it: '
 
 // On or off for new rows; read from the store once per session, saved across sessions
 const KEY = 'enabled'
@@ -154,7 +165,9 @@ export function register(on) {
     }
     if (!muted) return next(e)
     const { Box, Text } = $.ui.resolve(e)
-    const line = text => Text({ dimColor: true, wrap: 'truncate-middle', children: [text] })
+    // In the terminal a result block opens with the same gutter as the stock one
+    const lead = (e.surface === 'terminal' ? GUTTER : '') + PREFIX
+    const line = text => Text({ dimColor: true, wrap: 'truncate-middle', children: [lead + text] })
     if (!bash) return line(summary(tool, output))
     // Bash: the stock drawing of the command's output without the diff, then one line per file
     const { bashEditDiff, ...rest } = output
