@@ -78,7 +78,7 @@ const shown = new Map()
 
 const HELP = 'Shows one summary line instead of the diff of Edit, Write and NotebookEdit results.'
 const USAGE = '/mutedit on|off switches without the dialog.'
-const state = () => `mutedit: ${enabled ? 'on' : 'off'}`
+const state = () => (enabled ? 'on' : 'off')
 
 // Switch for new rows and save; a failed save keeps the switch for this session
 async function turn($, on) {
@@ -120,7 +120,7 @@ export function register(on) {
     const arg = typeof e.args === 'string' ? e.args.trim().toLowerCase() : ''
     if (arg === '') return { text: await menu($) }
     if (arg === 'on' || arg === 'off') return { text: await turn($, arg === 'on') }
-    return { text: `mutedit: unknown '${safe(e.args.trim())}', use /mutedit on|off` }
+    return { text: `unknown '${safe(e.args.trim())}', use /mutedit on|off` }
   })
 
   on('ui.render', { component: 'ToolResult' }, async ($, e, next) => {

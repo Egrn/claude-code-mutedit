@@ -67,7 +67,9 @@ trap cleanup EXIT
 # Open the session in a tall window (Claude Code draws on its own screen, no scrollback), wait for the prompt
 open_session() { # open_session <extra claude args>
   tmux kill-session -t $TMUX_NAME 2>/dev/null
-  tmux new-session -d -s $TMUX_NAME -x 220 -y 1500 -c "$WORK" "claude $1 --resume $SID; sleep 60"
+  # an installed copy of the mod is switched off, so only the copy under test (or none) draws
+  printf '{"enabledPlugins":{"mutedit@mutedit":false}}' > "$WORK/no-installed-mod.json"
+  tmux new-session -d -s $TMUX_NAME -x 220 -y 1500 -c "$WORK" "claude --settings $WORK/no-installed-mod.json $1 --resume $SID; sleep 60"
   local end=$((SECONDS + 40))
   while [ $SECONDS -lt $end ]; do
     local screen; screen=$(tmux capture-pane -p -t $TMUX_NAME)
@@ -84,13 +86,20 @@ wait_for() {
   local end=$((SECONDS + 15))
   until tmux capture-pane -p -t $TMUX_NAME | grep -qF -- "$1"; do [ $SECONDS -ge $end ] && return 1; sleep 0.3; done
 }
+# Wait until a command answer row is exactly "mutedit: <text>" (Claude Code adds the "mutedit: " itself)
+wait_answer() {
+  local end=$((SECONDS + 15))
+  until tmux capture-pane -p -t $TMUX_NAME | sed -n 's/^[[:space:]]*⎿[[:space:]]*//p' | sed 's/[[:space:]]*$//' | grep -qxF -- "mutedit: $1"; do
+    [ $SECONDS -ge $end ] && return 1; sleep 0.3
+  done
+}
 # Type a slash command and press Enter
 slash() { tmux send-keys -t $TMUX_NAME -l "$1"; sleep 0.5; tmux send-keys -t $TMUX_NAME Enter; }
 # Set the saved on/off state through the command in a fresh session
 set_state() {
   open_session "--plugin-dir $MOD"
   slash "/mutedit $1"
-  wait_for "mutedit: $1"
+  wait_answer "$1"
 }
 
 # Expected summary lines: <file tail> as the mod must draw it
@@ -279,14 +288,14 @@ if [ $LIVE = 1 ]; then
   if wait_for "Turn it on or off?"; then
     ORIG=$(tmux capture-pane -p -t $TMUX_NAME | sed -n 's/.*mutedit is \(on\|off\)\. Turn it on or off?.*/\1/p' | tail -1)
     tmux send-keys -t $TMUX_NAME Escape
-    wait_for "mutedit: $ORIG (unchanged)"; check "dialog: Esc did not answer 'mutedit: $ORIG (unchanged)'" $?
+    wait_answer "$ORIG (unchanged)"; check "dialog: Esc did not answer exactly 'mutedit: $ORIG (unchanged)'" $?
   else
     check "dialog: /mutedit opened no dialog" 1
   fi
   [ -n "$ORIG" ] || { echo "error: could not read your mutedit state; nothing was changed"; exit 1; }
   echo "your state: $ORIG (put back at the end)"
   slash "/mutedit on"
-  wait_for "mutedit: on"; check "/mutedit on: no answer 'mutedit: on'" $?
+  wait_answer on; check "/mutedit on: no answer exactly 'mutedit: on'" $?
 
   # 2. On: every edit is one line, also in ctrl+o
   open_session "--plugin-dir $MOD"
@@ -301,7 +310,7 @@ if [ $LIVE = 1 ]; then
   # 3. Off in the same session: rows already drawn keep one line, also on a redraw by ctrl+o
   tmux send-keys -t $TMUX_NAME C-o; sleep 1
   slash "/mutedit off"
-  wait_for "mutedit: off"; check "/mutedit off: no answer 'mutedit: off'" $?
+  wait_answer off; check "/mutedit off: no answer exactly 'mutedit: off'" $?
   tmux send-keys -t $TMUX_NAME C-o
   wait_for "Showing detailed transcript"; sleep 2
   capture "$OUT/live-off-redraw.txt"

@@ -287,7 +287,7 @@ describe('command', () => {
   })
 
   const arg: [string, string, boolean][] = [
-    ['off', 'mutedit: off', false], ['on', 'mutedit: on', true], [' OFF ', 'mutedit: off', false], ['On', 'mutedit: on', true],
+    ['off', 'off', false], ['on', 'on', true], [' OFF ', 'off', false], ['On', 'on', true],
   ]
   for (const [given, text, on1] of arg) {
     test(`/mutedit '${given}' answers '${text}', switches new rows and is saved`, async ($, on) => {
@@ -300,10 +300,10 @@ describe('command', () => {
   }
 
   const unknown: [string, string][] = [
-    ['maybe', "mutedit: unknown 'maybe', use /mutedit on|off"],
-    ['on off', "mutedit: unknown 'on off', use /mutedit on|off"],
-    ['\x1b[31mred\n', "mutedit: unknown '\\x1b[31mred', use /mutedit on|off"],
-    ['x\u202ey', "mutedit: unknown 'x\\u202ey', use /mutedit on|off"],
+    ['maybe', "unknown 'maybe', use /mutedit on|off"],
+    ['on off', "unknown 'on off', use /mutedit on|off"],
+    ['\x1b[31mred\n', "unknown '\\x1b[31mred', use /mutedit on|off"],
+    ['x\u202ey', "unknown 'x\\u202ey', use /mutedit on|off"],
   ]
   for (const [given, text] of unknown) {
     test(`/mutedit ${JSON.stringify(given)}: refused, state kept`, async ($, on) => {
@@ -316,16 +316,16 @@ describe('command', () => {
   test('long unknown argument is cut to 1000 chars', async ($, on) => {
     session(on); mock.store(on); await start($)
     const text = await run($, 'z'.repeat(5000))
-    expect(text.length).toBeLessThanOrEqual("mutedit: unknown '', use /mutedit on|off".length + 1000)
+    expect(text.length).toBeLessThanOrEqual("unknown '', use /mutedit on|off".length + 1000)
     expect(text).toContain('…')
   })
 })
 
 describe('dialog', () => {
   const picks: [string, boolean, string, boolean][] = [
-    ['On', false, 'mutedit: on', true],
-    ['Off', true, 'mutedit: off', false],
-    ['On', true, 'mutedit: on', true],
+    ['On', false, 'on', true],
+    ['Off', true, 'off', false],
+    ['On', true, 'on', true],
   ]
   for (const [pick, before, first, after] of picks) {
     test(`was ${before ? 'on' : 'off'}, picks ${pick}`, async ($, on) => {
@@ -346,13 +346,13 @@ describe('dialog', () => {
 
   test('Esc keeps the state', async ($, on) => {
     session(on, () => 'esc'); mock.store(on, { enabled: false }); await start($)
-    expect((await run($, '')).split('\n')[0]).toBe('mutedit: off (unchanged)')
+    expect((await run($, '')).split('\n')[0]).toBe('off (unchanged)')
     expect(await look($, 'r')).toBe(STOCK)
   })
 
   test('free text under Other keeps the state and is escaped', async ($, on) => {
     session(on, () => 'tur\x1bn\noff'); mock.store(on); await start($)
-    expect((await run($, '')).split('\n')[0]).toBe("mutedit: on (unchanged: 'tur\\x1bn\\noff' is not On or Off)")
+    expect((await run($, '')).split('\n')[0]).toBe("on (unchanged: 'tur\\x1bn\\noff' is not On or Off)")
     expect(await look($, 'r')).toBe(MUTED)
   })
 })
@@ -407,7 +407,7 @@ describe('broken store', () => {
     on('store.set', async () => { throw new Error('disk') })
     await start($)
     expect(await look($, 'r1')).toBe(MUTED)
-    expect(await run($, 'off')).toBe('mutedit: off (not saved, this session only)')
+    expect(await run($, 'off')).toBe('off (not saved, this session only)')
     expect(await look($, 'r2')).toBe(STOCK)
   })
 })
