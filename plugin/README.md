@@ -8,7 +8,9 @@ created · notes.txt · 4 lines
 replace cell c1 · analysis.ipynb
 ```
 
-Only the screen changes. The saved tool result and what the model sees stay the same. A failed edit shows the normal error, and other tools look normal.
+When a Bash command changes files, its output stays and the diff becomes one line per file, such as `deleted · old.txt · 3 lines`.
+
+Only the screen changes. The saved tool result and what the model sees stay the same. A failed edit or command shows the normal error, and other tools look normal.
 
 ## Commands
 
