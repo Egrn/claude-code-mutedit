@@ -20,24 +20,32 @@ Only the screen changes. The saved tool result and what the model sees stay the 
 
 ## Install
 
-Mods need Claude Code v2.1.287 or later. Pick one of two ways.
-
-**1. From a local copy** Claude Code reads the mod from the `plugin/` folder of your copy, so after you change it, run `/reload-plugins`.
-
-```
-git clone https://github.com/egrn/claude-code-mutedit
-claude plugin marketplace add ./claude-code-mutedit
-claude plugin install mutedit@mutedit
-```
-
-**2. Into the Claude Code plugin folder** Claude Code downloads the mod from GitHub into its own folder. Update it with `claude plugin update mutedit@mutedit`.
+Mods need Claude Code v2.1.287 or later.
 
 ```
 claude plugin marketplace add egrn/claude-code-mutedit
 claude plugin install mutedit@mutedit
 ```
 
-Start a new Claude Code session after either way. Remove the mod with `claude plugin uninstall mutedit@mutedit`.
+Start a new Claude Code session, or run `/reload-plugins` in an open one.
+
+Or do the same inside Claude Code, at the prompt:
+
+```
+/plugin install mutedit --marketplace egrn/claude-code-mutedit
+/reload-plugins
+```
+
+Answer `y` to add the marketplace, then pick a scope. Check it with `/mutedit on`: it answers `mutedit: on`.
+
+Update:
+
+```
+claude plugin marketplace update mutedit
+claude plugin update mutedit@mutedit
+```
+
+Remove: `claude plugin uninstall mutedit@mutedit`.
 
 ## About
 
